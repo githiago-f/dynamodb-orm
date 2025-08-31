@@ -1,58 +1,51 @@
+import "reflect-metadata";
 import { builder } from "./builder";
-
-// utils
-function PartitionKey(): PropertyDecorator {
-  return () => { };
-}
-
-function SortKey(): PropertyDecorator {
-  return () => { };
-}
-
-function Entity(): ClassDecorator {
-  return () => { };
-}
-
-type Key<T extends string | number> = T;
+import { map } from "./lib/data/mapper";
+import { PK } from "./utils/types/keys";
+import { ByteSet } from "./lib/modeling/set-annotations";
+import { Entity } from "./lib/modeling/entity";
+import { PartitionKey } from "./lib/modeling/key";
+import { SaveAs } from "./lib/modeling/save-as";
 
 // modeling
 abstract class Invoices {
   @PartitionKey()
-  abstract readonly pk: Key<string>;
+  @SaveAs("_pk")
+  abstract readonly partitionKey: PK<string>;
 }
 
 enum Status {
-  PAGO,
-  EM_ABERTO,
-  FECHADO,
-  CANCELADO
+  PAGO = "PAGO",
+  EM_ABERTO = "EM_ABERTO",
+  FECHADO = "FECHADO",
+  CANCELADO = "CANCELADO",
 }
 
 @Entity()
 class Charge extends Invoices {
-  public readonly uc: Key<string>;
+  @SaveAs("_ci")
+  public readonly clientIdentity: string;
   public readonly status: Status;
   public readonly value: number;
+  public readonly enabled: boolean;
 
-  get pk() {
-    return `CHARGE#${this.uc}`;
-  }
+  public readonly myMap: Record<string, string>;
 
-  cancel() {
-    return builder(Charge)
-      .value(this.value)
-      .uc(this.uc)
-      .status(Status.CANCELADO)
-      .build();
+  @ByteSet()
+  public readonly mySets: Uint8Array[];
+
+  get partitionKey() {
+    return `CHARGE#${this.clientIdentity}`;
   }
 }
 
-// repository
-const charge = builder(Charge).uc('100000001')
-  .value(3000)
+const charge = builder(Charge)
+  .clientIdentity("100000001")
   .status(Status.EM_ABERTO)
+  .enabled(false)
+  .value(3000)
+  .mySets([new Uint8Array([12, 2, 434, 53]), new Uint8Array([12, 22, 0, 53])])
+  .myMap({ chave: "valor" })
   .build();
 
-console.log(charge);
-console.log(charge.cancel());
-console.log(charge);
+console.log(map(charge));
